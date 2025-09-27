@@ -1,156 +1,184 @@
-getgenv().Settings = {
-	Circle = {
-		Radius = 200,
-		Color = Color3.fromRGB(255, 0, 0),
-		Thickness = 1
-	},
-	Aimbot = {
-		Enabled = true,
-		Smoothness = 0.3,
-		WallCheck = true,
-		TeamCheck = false
-	}
-}
-local Settings = getgenv().Settings;
 local Players = game:GetService("Players")
-local Camera = workspace.CurrentCamera;
-local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Circle = Drawing.new("Circle")
-Circle.Radius = Settings.Circle.Radius;
-Circle.Color = Settings.Circle.Color;
-Circle.Thickness = Settings.Circle.Thickness;
-Circle.Filled = false;
-Circle.Visible = true;
-local function IsVisible(targetPos)
-	if not Settings.Aimbot.WallCheck then
-		return true
-	end;
-	local rayParams = RaycastParams.new()
-	rayParams.FilterType = Enum.RaycastFilterType.Blacklist;
-	rayParams.FilterDescendantsInstances = {
-		Players.LocalPlayer.Character
-	}
-	local direction = (targetPos - Camera.CFrame.Position)
-	local raycastResult = workspace:Raycast(Camera.CFrame.Position, direction, rayParams)
-	if raycastResult then
-		local hitPart = raycastResult.Instance;
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Character and player.Character:FindFirstChild("Head") then
-				if hitPart:IsDescendantOf(player.Character) then
-					return true
-				end
-			end
-		end;
-		return false
-	else
-		return true
-	end
-end;
+local Workspace = game:GetService("Workspace")
+local Teams = game:GetService("Teams")
+local Camera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "Poas Aimbot Universal"
+gui.ResetOnSpawn = false
+gui.Parent = game.CoreGui
+
+local function createButton(name, posY)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 160, 0, 35)
+    button.Position = UDim2.new(0, 20, 0, posY)
+    button.Text = name .. ": OFF"
+    button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.TextScaled = true
+    button.ZIndex = 9999
+    button.Active = true
+    button.Draggable = true
+    button.Parent = gui
+    return button
+end
+
+-- Toggles
+local hacks = {
+    Aimbot = false,
+    Triggerbot = false,
+    ESP = false,
+    TeamCheck = true  -- Default to true for safety
+}
+
+local buttons = {}
+buttons.Aimbot = createButton("Aimbot", 150)
+buttons.Triggerbot = createButton("Triggerbot", 190)
+buttons.ESP = createButton("ESP", 230)
+buttons.TeamCheck = createButton("Team Check", 270)
+
+-- Initialize team check button state
+buttons.TeamCheck.Text = "Team Check: " .. (hacks.TeamCheck and "ON" or "OFF")
+buttons.TeamCheck.BackgroundColor3 = hacks.TeamCheck and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+
+for name, button in pairs(buttons) do
+    button.MouseButton1Click:Connect(function()
+        hacks[name] = not hacks[name]
+        button.Text = name .. ": " .. (hacks[name] and "ON" or "OFF")
+        button.BackgroundColor3 = hacks[name] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    end)
+end
+
+-- Aimbot with wall check + team check
+local function getClosestTarget()
+    local closest = nil
+    local shortestDist = math.huge
+    local origin = Camera.CFrame.Position
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        -- Team check condition
+        local teamCheckPassed = not hacks.TeamCheck or (plr.Team ~= LocalPlayer.Team)
+        
+        if plr ~= LocalPlayer and teamCheckPassed and plr.Character and plr.Character:FindFirstChild("Head") then
+            local head = plr.Character.Head
+            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+
+            if onScreen then
+                -- Wall check
+                local rayParams = RaycastParams.new()
+                rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+                rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+                rayParams.IgnoreWater = true
+
+                local result = Workspace:Raycast(origin, (head.Position - origin).Unit * 500, rayParams)
+
+                if result and result.Instance:IsDescendantOf(plr.Character) then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closest = head
+                    end
+                end
+            end
+        end
+    end
+
+    return closest
+end
+
+-- Triggerbot (mobile-friendly)
+local debounce = false
+local function getEnemyInCrosshair()
+    local origin = Camera.CFrame.Position
+    local direction = Camera.CFrame.LookVector * 500
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.IgnoreWater = true
+
+    local result = Workspace:Raycast(origin, direction, rayParams)
+    if result then
+        local part = result.Instance
+        local char = part:FindFirstAncestorOfClass("Model")
+        if char and char ~= LocalPlayer.Character and char:FindFirstChild("Humanoid") then
+            local plr = Players:GetPlayerFromCharacter(char)
+            -- Team check condition
+            local teamCheckPassed = not hacks.TeamCheck or (plr and plr.Team ~= LocalPlayer.Team)
+            if plr and teamCheckPassed then
+                if part.Name == "Head" or part.Name == "HumanoidRootPart" then
+                    return char
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function simulateMobileFire()
+    if not debounce then
+        debounce = true
+        -- Replace this with your weapon's RemoteEvent if needed
+        print("[TRIGGERBOT] Firing at enemy in crosshair!")
+        wait(0.1)
+        debounce = false
+    end
+end
+
+-- ESP (only for enemies)
+local espHighlights = {}
+
+local function clearESP()
+    for _, h in pairs(espHighlights) do
+        if h and h.Parent then
+            h:Destroy()
+        end
+    end
+    espHighlights = {}
+end
+
+local function updateESP()
+    clearESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        -- Team check condition
+        local teamCheckPassed = not hacks.TeamCheck or (plr.Team ~= LocalPlayer.Team)
+        
+        if plr ~= LocalPlayer and teamCheckPassed and plr.Character and plr.Character:FindFirstChild("Head") then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "ESP_Highlight"
+            highlight.Adornee = plr.Character
+            highlight.FillColor = Color3.fromRGB(255, 0, 0)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Parent = plr.Character
+            table.insert(espHighlights, highlight)
+        end
+    end
+end
+
+-- Main loop
 RunService.RenderStepped:Connect(function()
-	if not Settings.Aimbot.Enabled then
-		return
-	end;
-	local mousePos = UIS:GetMouseLocation()
-	Circle.Position = Vector2.new(mousePos.X, mousePos.Y)
-	Circle.Radius = Settings.Circle.Radius;
-	Circle.Color = Settings.Circle.Color;
-	Circle.Thickness = Settings.Circle.Thickness;
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-			if not Settings.Aimbot.TeamCheck or player.Team ~= Players.LocalPlayer.Team then
-				local headPos = player.Character.Head.Position;
-				if IsVisible(headPos) then
-					local screenPos, onScreen = Camera:WorldToViewportPoint(headPos)
-					if onScreen then
-						local distance = (Vector2.new(screenPos.X, screenPos.Y) - Circle.Position).Magnitude;
-						if distance <= Circle.Radius then
-							local deltaX = (screenPos.X - mousePos.X) * Settings.Aimbot.Smoothness;
-							local deltaY = (screenPos.Y - mousePos.Y) * Settings.Aimbot.Smoothness;
-							mousemoverel(deltaX, deltaY)
-							break
-						end
-					end
-				end
-			end
-		end
-	end
+    if hacks.Aimbot then
+        local target = getClosestTarget()
+        if target then
+            local camPos = Camera.CFrame.Position
+            Camera.CFrame = CFrame.new(camPos, target.Position)
+        end
+    end
+
+    if hacks.Triggerbot then
+        local enemyChar = getEnemyInCrosshair()
+        if enemyChar then
+            simulateMobileFire()
+        end
+    end
+
+    if hacks.ESP then
+        updateESP()
+    else
+        clearESP()
+    end
 end)
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-local Window = Rayfield:CreateWindow({
-	Name = "Aimbot",
-	LoadingTitle = "Loading...",
-	LoadingSubtitle = "by Fade",
-	ConfigurationSaving = {
-		Enabled = false
-	},
-	Discord = {
-		Enabled = false
-	},
-	KeySystem = false
-})
-local Tab = Window:CreateTab("Aimbot")
-Tab:CreateToggle({
-	Name = "Enable Aimbot",
-	CurrentValue = Settings.Aimbot.Enabled,
-	Callback = function(Value)
-		Settings.Aimbot.Enabled = Value
-	end
-})
-Tab:CreateSlider({
-	Name = "Smoothness",
-	Range = {
-		0,
-		1
-	},
-	Increment = 0.01,
-	CurrentValue = Settings.Aimbot.Smoothness,
-	Callback = function(Value)
-		Settings.Aimbot.Smoothness = Value
-	end
-})
-Tab:CreateToggle({
-	Name = "Wall Check",
-	CurrentValue = Settings.Aimbot.WallCheck,
-	Callback = function(Value)
-		Settings.Aimbot.WallCheck = Value
-	end
-})
-Tab:CreateToggle({
-	Name = "Team Check",
-	CurrentValue = Settings.Aimbot.TeamCheck,
-	Callback = function(Value)
-		Settings.Aimbot.TeamCheck = Value
-	end
-})
-Tab:CreateSlider({
-	Name = "Circle Radius",
-	Range = {
-		50,
-		500
-	},
-	Increment = 1,
-	CurrentValue = Settings.Circle.Radius,
-	Callback = function(Value)
-		Settings.Circle.Radius = Value
-	end
-})
-Tab:CreateColorPicker({
-	Name = "Circle Color",
-	Default = Settings.Circle.Color,
-	Callback = function(Color)
-		Settings.Circle.Color = Color
-	end
-})
-Tab:CreateSlider({
-	Name = "Circle Thickness",
-	Range = {
-		1,
-		5
-	},
-	Increment = 1,
-	CurrentValue = Settings.Circle.Thickness,
-	Callback = function(Value)
-		Settings.Circle.Thickness = Value
-	end
-})
