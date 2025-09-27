@@ -1,0 +1,194 @@
+getgenv().Settings = {
+	Circle = {
+		Radius = 200,
+		Color = Color3.fromRGB(255, 0, 0),
+		Thickness = 1
+	},
+	Aimbot = {
+		Enabled = true,
+		Smoothness = 0.3,
+		WallCheck = true,
+		TeamCheck = false
+	}
+}
+local Settings = getgenv().Settings;
+local Players = game:GetService("Players")
+local Camera = workspace.CurrentCamera;
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Circle = Drawing.new("Circle")
+Circle.Radius = Settings.Circle.Radius;
+Circle.Color = Settings.Circle.Color;
+Circle.Thickness = Settings.Circle.Thickness;
+Circle.Filled = false;
+Circle.Visible = true;
+local function IsVisible(targetPos)
+	if not Settings.Aimbot.WallCheck then
+		return true
+	end;
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Blacklist;
+	rayParams.FilterDescendantsInstances = {
+		Players.LocalPlayer.Character
+	}
+	local direction = (targetPos - Camera.CFrame.Position)
+	local raycastResult = workspace:Raycast(Camera.CFrame.Position, direction, rayParams)
+	if raycastResult then
+		local hitPart = raycastResult.Instance;
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character and player.Character:FindFirstChild("Head") then
+				if hitPart:IsDescendantOf(player.Character) then
+					return true
+				end
+			end
+		end;
+		return false
+	else
+		return true
+	end
+end;
+RunService.RenderStepped:Connect(function()
+	if not Settings.Aimbot.Enabled then
+		return
+	end;
+	local mousePos = UIS:GetMouseLocation()
+	Circle.Position = Vector2.new(mousePos.X, mousePos.Y)
+	Circle.Radius = Settings.Circle.Radius;
+	Circle.Color = Settings.Circle.Color;
+	Circle.Thickness = Settings.Circle.Thickness;
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+			if not Settings.Aimbot.TeamCheck or player.Team ~= Players.LocalPlayer.Team then
+				local headPos = player.Character.Head.Position;
+				if IsVisible(headPos) then
+					local screenPos, onScreen = Camera:WorldToViewportPoint(headPos)
+					if onScreen then
+						local distance = (Vector2.new(screenPos.X, screenPos.Y) - Circle.Position).Magnitude;
+						if distance <= Circle.Radius then
+							local deltaX = (screenPos.X - mousePos.X) * Settings.Aimbot.Smoothness;
+							local deltaY = (screenPos.Y - mousePos.Y) * Settings.Aimbot.Smoothness;
+							mousemoverel(deltaX, deltaY)
+							break
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local Window = Rayfield:CreateWindow({
+	Name = "Aimbot",
+	LoadingTitle = "Loading...",
+	LoadingSubtitle = "by Fade",
+	ConfigurationSaving = {
+		Enabled = false
+	},
+	Discord = {
+		Enabled = false
+	},
+	KeySystem = false
+})
+local Tab = Window:CreateTab("Aimbot")
+Tab:CreateToggle({
+	Name = "Enable Aimbot",
+	CurrentValue = Settings.Aimbot.Enabled,
+	Callback = function(Value)
+		Settings.Aimbot.Enabled = Value
+	end
+})
+Tab:CreateSlider({
+	Name = "Smoothness",
+	Range = {
+		0,
+		1
+	},
+	Increment = 0.01,
+	CurrentValue = Settings.Aimbot.Smoothness,
+	Callback = function(Value)
+		Settings.Aimbot.Smoothness = Value
+	end
+})
+Tab:CreateToggle({
+	Name = "Wall Check",
+	CurrentValue = Settings.Aimbot.WallCheck,
+	Callback = function(Value)
+		Settings.Aimbot.WallCheck = Value
+	end
+})
+Tab:CreateToggle({
+	Name = "Team Check",
+	CurrentValue = Settings.Aimbot.TeamCheck,
+	Callback = function(Value)
+		Settings.Aimbot.TeamCheck = Value
+	end
+})
+Tab:CreateSlider({
+	Name = "Circle Radius",
+	Range = {
+		50,
+		500
+	},
+	Increment = 1,
+	CurrentValue = Settings.Circle.Radius,
+	Callback = function(Value)
+		Settings.Circle.Radius = Value
+	end
+})
+Tab:CreateColorPicker({
+	Name = "Circle Color",
+	Default = Settings.Circle.Color,
+	Callback = function(Color)
+		Settings.Circle.Color = Color
+	end
+})
+Tab:CreateSlider({
+	Name = "Circle Thickness",
+	Range = {
+		1,
+		5
+	},
+	Increment = 1,
+	CurrentValue = Settings.Circle.Thickness,
+	Callback = function(Value)
+		Settings.Circle.Thickness = Value
+	end
+})
+
+local PlayerTab = Window:CreateTab("Player", 4483362458) -- Title, Image
+
+ local Slider = PlayerTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {1, 10},
+    Increment = 1,
+    Suffix = "Speed",
+    CurrentValue = 10,
+    Flag = "Slider1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Callback = function(Value)
+     game.Players.LocalPlayer.Character:SetAttribute("SpeedMultiplier", Value)
+    end,
+ })
+
+ local Slider = PlayerTab:CreateSlider({
+    Name = "Dash length",
+    Range = {10, 1000},
+    Increment = 1,
+    Suffix = "Length",
+    CurrentValue = 10,
+    Flag = "Slider2", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Callback = function(Value)
+     game.Players.LocalPlayer.Character:SetAttribute("DashLength", Value)
+    end,
+ })
+
+ local Slider = PlayerTab:CreateSlider({
+    Name = "Jump Height",
+    Range = {10, 500},
+    Increment = 1,
+    Suffix = "Height",
+    CurrentValue = 10,
+    Flag = "Slider3", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+    Callback = function(Value)
+     game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
+    end,
+ })
